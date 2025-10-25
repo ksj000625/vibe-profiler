@@ -7,6 +7,8 @@ name = "pypi"
 rich = "*"
 typer = "*"
 vibe-profiler = {file = ".", editable = true}
+psutil = "*"
+requests = "*"
 
 [dev-packages]
 build = "*"

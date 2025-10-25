@@ -1,23 +1,25 @@
-from functools import wraps
 import time
+from functools import wraps
 
 def vibe_profile(profiler):
     """
-    vibe_profile decorator
-    -----------------------
-    Measures the execution time of a function and records it in the VibeProfiler instance.
+    A decorator that automatically measures performance and resource usage before and after function execution.
     """
-
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            start = time.perf_counter()
+            monitor = profiler.resource_monitor
+            monitor.start()
+
+            start = time.time()
             result = func(*args, **kwargs)
-            end = time.perf_counter()
+            end = time.time()
 
             duration_ms = (end - start) * 1000
-            profiler.record(func.__name__, duration_ms)
-            return result
+            resource_stats = monitor.stop()
+            resource_stats["duration_ms"] = duration_ms
 
+            profiler.record(func.__name__, resource_stats)
+            return result
         return wrapper
     return decorator
