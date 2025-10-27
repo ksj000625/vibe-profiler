@@ -3,7 +3,8 @@ from functools import wraps
 
 def vibe_profile(profiler):
     """
-    A decorator that automatically measures performance and resource usage before and after function execution.
+    A decorator that automatically measures performance and resource usage
+    before and after function execution.
     """
     def decorator(func):
         @wraps(func)
@@ -19,7 +20,8 @@ def vibe_profile(profiler):
             resource_stats = monitor.stop()
             resource_stats["duration_ms"] = duration_ms
 
-            profiler.record(func.__name__, resource_stats)
+            # pass function reference for code analysis
+            profiler.record(func.__name__, resource_stats, func_ref=func)
             return result
         return wrapper
     return decorator
