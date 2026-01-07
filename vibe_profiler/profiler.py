@@ -1,52 +1,84 @@
-from collections import defaultdict
-from statistics import mean
-from .resources import ResourceMonitor
-from .code_analyzer import CodeAnalyzer
+import functools
+import time
+import inspect
+from typing import Dict, Any, List
+from dataclasses import dataclass, field
 
-class VibeProfiler:
-    """
-    A profiler that collects function execution time, memory usage, and I/O usage.
-    Also detects common inefficient patterns in the analyzed functions.
-    """
+@dataclass
+class FunctionStats:
+    name: str
+    call_count: int = 0
+    total_time_us: float = 0.0
+    source_code: str = ""
+    
+    @property
+    def avg_time_ms(self) -> float:
+        if self.call_count == 0:
+            return 0.0
+        # Convert total microseconds to average milliseconds
+        return (self.total_time_us / self.call_count) / 1000.0
+
+class ProfilerRegistry:
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(ProfilerRegistry, cls).__new__(cls)
+            cls._instance.stats = {}
+        return cls._instance
+    
     def __init__(self):
-        self.records = defaultdict(list)
-        self.resource_monitor = ResourceMonitor()
-        self.code_analyzer = CodeAnalyzer()
-        self.function_warnings = {}
+        # Prevent re-initialization if already created
+        if not hasattr(self, 'stats'):
+            self.stats: Dict[str, FunctionStats] = {}
+            
+    def register(self, func_name: str, execution_time_us: float, source_code: str = ""):
+        if func_name not in self.stats:
+            self.stats[func_name] = FunctionStats(name=func_name, source_code=source_code)
+        
+        stat = self.stats[func_name]
+        stat.call_count += 1
+        stat.total_time_us += execution_time_us
+        if not stat.source_code and source_code:
+            stat.source_code = source_code
 
-    def record(self, func_name: str, stats: dict, func_ref=None):
-        """Store the profiling result of a function and analyze its code."""
-        self.records[func_name].append(stats)
-        if func_ref and func_name not in self.function_warnings:
-            self.function_warnings[func_name] = self.code_analyzer.analyze(func_ref)
+    def get_stats(self) -> List[FunctionStats]:
+        return list(self.stats.values())
 
-    def get_level(self, avg_ms: float) -> str:
-        """Vibe-coder-friendly speed rating."""
-        if avg_ms < 100:
-            return "Fast ⚡"
-        elif avg_ms < 250:
-            return "Normal 🙂"
-        else:
-            return "Slow 🐢"
+    def clear(self):
+        self.stats.clear()
 
-    def report(self):
-        """Display profiling results in CLI format."""
-        print("\n================ Vibe Profiler Report ================")
-        print(f"{'Function Name':<20} {'Avg (ms)':<10} {'Mem(KB)':<10} {'I/O(KB)':<10} {'Level':<8}")
-        print("-" * 75)
+# Global registry instance
+_registry = ProfilerRegistry()
 
-        for func_name, entries in self.records.items():
-            avg_ms = mean(e["duration_ms"] for e in entries)
-            avg_mem = mean(e["memory_used"] for e in entries) / 1024
-            avg_io = mean(e["io_read_diff"] + e["io_write_diff"] for e in entries) / 1024
-            level = self.get_level(avg_ms)
-            print(f"{func_name:<20} {avg_ms:<10.1f} {avg_mem:<10.1f} {avg_io:<10.1f} {level}")
+def vibe_profile(func):
+    """
+    Decorator to measure execution time of a function.
+    Stores stats in the global ProfilerRegistry.
+    """
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        # Capture source code once
+        try:
+            source_code = inspect.getsource(func)
+        except OSError:
+            source_code = "Source code not available"
 
-            # 🔍 show detected code warnings
-            if func_name in self.function_warnings:
-                for warn in self.function_warnings[func_name]:
-                    print(f"   {warn}")
+        start_time = time.perf_counter()
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            end_time = time.perf_counter()
+            # Convert to microseconds for better precision on fast functions
+            elapsed_us = (end_time - start_time) * 1_000_000
+            
+            _registry.register(func.__name__, elapsed_us, source_code)
+            
+        return result
+    return wrapper
 
-        print("-" * 75)
-        print("Speed Guide: Fast < 100ms < Normal < 250ms < Slow")
-        print("=" * 75)
+def get_all_stats() -> List[FunctionStats]:
+    return _registry.get_stats()
+
+def clear_stats():
+    _registry.clear()

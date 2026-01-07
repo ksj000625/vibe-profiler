@@ -1,5 +1,14 @@
-from .profiler import VibeProfiler
-from .utils import vibe_profile
+from .profiler import vibe_profile, get_all_stats, clear_stats
+from .reporter import show_vibe_report, get_optimization_prompt
+from .ai_engine import AIEngine, SimpleHeuristicEngine, OpenAIEngine
 
-__all__ = ["VibeProfiler", "vibe_profile"]
-__version__ = "0.1.0"
+__all__ = [
+    "vibe_profile",
+    "get_all_stats",
+    "clear_stats",
+    "show_vibe_report",
+    "get_optimization_prompt",
+    "AIEngine",
+    "SimpleHeuristicEngine",
+    "OpenAIEngine"
+]
